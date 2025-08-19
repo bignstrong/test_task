@@ -3,11 +3,12 @@ Database connection and management
 """
 
 import aiopg
-from twisted.internet import defer, threads
+from twisted.internet import defer, threads, reactor
 from twisted.python import log
 from typing import Dict, List, Optional, Any
 import json
 from datetime import datetime
+import asyncio
 
 class DatabaseManager:
     """Manages PostgreSQL database connections and operations"""
@@ -15,32 +16,32 @@ class DatabaseManager:
     def __init__(self, database_url: str):
         self.database_url = database_url
         self.pool = None
+        self._loop = None
     
     @defer.inlineCallbacks
     def initialize(self):
         """Initialize database connection pool"""
         try:
-            self.pool = yield threads.deferToThread(
-                self._create_pool
-            )
+            # Create event loop in a thread
+            self._loop = yield threads.deferToThread(self._create_loop)
+            self.pool = yield threads.deferToThread(self._create_pool)
             log.msg("Database pool created successfully")
         except Exception as e:
             log.err(f"Failed to initialize database: {e}")
             raise
     
+    def _create_loop(self):
+        """Create and return a new event loop"""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
+    
     def _create_pool(self):
-        """Create aiopg connection pool (runs in thread)"""
-        import asyncio
-        
+        """Create aiopg connection pool using the existing loop"""
         async def create():
             return await aiopg.create_pool(self.database_url)
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(create())
-        finally:
-            loop.close()
+        return self._loop.run_until_complete(create())
     
     @defer.inlineCallbacks
     def save_configuration(self, service: str, payload: Dict[str, Any], version: Optional[int] = None) -> Dict[str, Any]:
@@ -55,9 +56,7 @@ class DatabaseManager:
             raise
     
     def _save_config_sync(self, service: str, payload: Dict[str, Any], version: Optional[int] = None) -> Dict[str, Any]:
-        """Synchronous save configuration"""
-        import asyncio
-        
+        """Synchronous save configuration using the existing loop"""
         async def save():
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -67,7 +66,9 @@ class DatabaseManager:
                             "SELECT COALESCE(MAX(version), 0) + 1 FROM configurations WHERE service = %s",
                             (service,)
                         )
-                        version = (await cur.fetchone())[0]
+                        current_version = (await cur.fetchone())[0]
+                    else:
+                        current_version = version
                     
                     # Insert new configuration
                     await cur.execute(
@@ -75,21 +76,16 @@ class DatabaseManager:
                         INSERT INTO configurations (service, version, payload, created_at)
                         VALUES (%s, %s, %s, %s)
                         """,
-                        (service, version, json.dumps(payload), datetime.now())
+                        (service, current_version, json.dumps(payload), datetime.now())
                     )
                     
                     return {
                         "service": service,
-                        "version": version,
+                        "version": current_version,
                         "status": "saved"
                     }
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(save())
-        finally:
-            loop.close()
+        return self._loop.run_until_complete(save())
     
     @defer.inlineCallbacks
     def get_configuration(self, service: str, version: Optional[int] = None) -> Optional[Dict[str, Any]]:
@@ -104,9 +100,7 @@ class DatabaseManager:
             raise
     
     def _get_config_sync(self, service: str, version: Optional[int] = None) -> Optional[Dict[str, Any]]:
-        """Synchronous get configuration"""
-        import asyncio
-        
+        """Synchronous get configuration using the existing loop"""
         async def get():
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -133,12 +127,7 @@ class DatabaseManager:
                         return json.loads(row[0]) if isinstance(row[0], str) else row[0]
                     return None
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(get())
-        finally:
-            loop.close()
+        return self._loop.run_until_complete(get())
     
     @defer.inlineCallbacks
     def get_configuration_history(self, service: str) -> List[Dict[str, Any]]:
@@ -153,9 +142,7 @@ class DatabaseManager:
             raise
     
     def _get_history_sync(self, service: str) -> List[Dict[str, Any]]:
-        """Synchronous get configuration history"""
-        import asyncio
-        
+        """Synchronous get configuration history using the existing loop"""
         async def get_history():
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -177,9 +164,11 @@ class DatabaseManager:
                         for row in rows
                     ]
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(get_history())
-        finally:
-            loop.close()
+        return self._loop.run_until_complete(get_history())
+    
+    def close(self):
+        """Close database connections"""
+        if self.pool:
+            self._loop.run_until_complete(self.pool.close())
+        if self._loop and not self._loop.is_closed():
+            self._loop.close()

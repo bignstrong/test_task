@@ -114,17 +114,14 @@ class ConfigurationHandler:
             
             # Process template if requested
             if template_flag == '1':
-                # Extract template variables from request body if POST data is provided
+                # Extract template variables from query parameters
                 template_vars = {}
-                try:
-                    if hasattr(request, 'content') and request.content:
-                        request.content.seek(0)  # Reset content position
-                        body_content = request.content.read()
-                        if body_content:
-                            template_vars = json.loads(body_content.decode('utf-8'))
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    # Ignore template variable parsing errors, use empty dict
-                    template_vars = {}
+                
+                # Get template variables from query params
+                for key, values in request.args.items():
+                    key_str = key.decode('utf-8')
+                    if key_str not in ['version', 'template']:  # Skip special params
+                        template_vars[key_str] = values[0].decode('utf-8')
                 
                 # Add default template variables
                 template_vars.setdefault('user', 'Anonymous')

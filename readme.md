@@ -53,6 +53,7 @@ docker-compose up --build
 Загружает новую конфигурацию для сервиса.
 
 **Пример запроса:**
+
 ```bash
 curl -X POST http://localhost:8080/config/my_service \
   -H "Content-Type: application/x-yaml" \
@@ -67,12 +68,29 @@ features:
 '
 ```
 
+**Для Windows PowerShell:**
+
+```powershell
+curl.exe -X POST http://localhost:8080/config/my_service `
+  -H "Content-Type: application/x-yaml" `
+  -d @"
+version: 1
+database:
+  host: "db.local"
+  port: 5432
+features:
+  enable_auth: true
+  enable_cache: false
+"@
+```
+
 **Пример ответа:**
+
 ```json
 {
-  "service": "my_service",
-  "version": 1,
-  "status": "saved"
+	"service": "my_service",
+	"version": 1,
+	"status": "saved"
 }
 ```
 
@@ -83,10 +101,12 @@ features:
 Получает актуальную или конкретную версию конфигурации.
 
 **Параметры:**
+
 - `version` (необязательный) - номер версии конфигурации
 - `template` (необязательный) - обработка через Jinja2 (значение: 1)
 
 **Примеры запросов:**
+
 ```bash
 # Получить последнюю версию
 curl http://localhost:8080/config/my_service
@@ -105,31 +125,34 @@ curl http://localhost:8080/config/my_service?template=1
 Получает историю версий конфигураций для сервиса.
 
 **Пример запроса:**
+
 ```bash
 curl http://localhost:8080/config/my_service/history
 ```
 
 **Пример ответа:**
+
 ```json
 [
-  {
-    "version": 3,
-    "created_at": "2025-08-19T13:00:00"
-  },
-  {
-    "version": 2,
-    "created_at": "2025-08-19T12:15:00"
-  },
-  {
-    "version": 1,
-    "created_at": "2025-08-19T12:00:00"
-  }
+	{
+		"version": 3,
+		"created_at": "2025-08-19T13:00:00"
+	},
+	{
+		"version": 2,
+		"created_at": "2025-08-19T12:15:00"
+	},
+	{
+		"version": 1,
+		"created_at": "2025-08-19T12:00:00"
+	}
 ]
 ```
 
 ## Валидация конфигураций
 
 Сервис проверяет наличие обязательных полей:
+
 - `version` (integer)
 - `database.host` (string)
 - `database.port` (integer)
@@ -139,19 +162,39 @@ curl http://localhost:8080/config/my_service/history
 При использовании параметра `?template=1` конфигурации обрабатываются через Jinja2.
 
 **Пример шаблона:**
+
 ```yaml
 version: 2
-welcome_message: "Hello {{ user }}!"
+welcome_message: 'Hello {{ user }}!'
 database:
   host: "{{ db_host | default('localhost') }}"
 ```
 
 Переменные шаблона можно передать в теле запроса в формате JSON:
+
 ```bash
 curl "http://localhost:8080/config/my_service?template=1" \
-  -H "Content-Type: application/json" \
-  -d '{"user": "Alice", "db_host": "prod.db.local"}'
+
 ```
+
+**Для Windows PowerShell:**
+
+```powershell
+# Вариант 1: Используя Invoke-WebRequest (нативный PowerShell)
+Invoke-WebRequest -Uri "http://localhost:8080/config/my_service?template=1&user=Alice&db_host=prod.db.local" `
+  -Method GET
+
+# Вариант 2: Используя curl.exe (если установлен)
+curl.exe "http://localhost:8080/config/my_service?template=1&user=Alice&db_host=prod.db.local"
+```
+
+**Для Windows Command Prompt:**
+
+```cmd
+curl.exe "http://localhost:8080/config/my_service?template=1&user=Alice&db_host=prod.db.local"
+```
+
+````
 
 ## Структура базы данных
 
@@ -164,11 +207,12 @@ CREATE TABLE configurations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(service, version)
 );
-```
+````
 
 ## Тестирование
 
 Запуск тестов:
+
 ```bash
 # Внутри контейнера приложения
 docker-compose exec app pytest
@@ -228,12 +272,14 @@ curl http://localhost:8080/config/web_service/history
 ## Разработка
 
 ### Структура проекта
+
 - Код организован по модулям (API, Database, Models)
 - Используется типизация Python
 - Асинхронная обработка с Twisted
 - Тесты с pytest и pytest-twisted
 
 ### Расширение функциональности
+
 - Добавление новых валидаторов в `models/configuration.py`
 - Расширение API через `api/handlers.py`
 - Модификация схемы БД через `init.sql`

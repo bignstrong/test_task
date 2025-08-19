@@ -7,7 +7,30 @@ import json
 from twisted.test import test_internet
 from twisted.web import server
 from twisted.internet import defer
-from twisted.test.test_web import DummyRequest
+
+# Simple DummyRequest for testing
+class DummyRequest:
+    def __init__(self, method=b'GET', uri=b'/config/test', args=None, content=b''):
+        self.method = method
+        self.uri = uri
+        self.args = args or {}
+        self.content = content
+        self.headers = {}
+        self.responseCode = 200
+    
+    def setHeader(self, name, value):
+        self.headers[name] = value
+    
+    def setResponseCode(self, code):
+        self.responseCode = code
+    
+    def write(self, data):
+        if not hasattr(self, 'written'):
+            self.written = b''
+        self.written += data
+    
+    def finish(self):
+        pass
 
 # Mock database manager for testing
 class MockDatabaseManager:
