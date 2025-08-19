@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - '8080:8080'
+    environment:
+      - DATABASE_URL=postgresql://config_user:config_pass@postgres:5432/config_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+    working_dir: /app
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: config_db
+      POSTGRES_USER: config_user
+      POSTGRES_PASSWORD: config_pass
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U config_user -d config_db']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

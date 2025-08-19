@@ -1,0 +1,50 @@
+# Примеры конфигураций для тестирования
+
+# Базовая конфигурация
+version: 1
+database:
+  host: "localhost"
+  port: 5432
+  name: "myapp_db"
+  user: "appuser"
+features:
+  enable_auth: true
+  enable_cache: false
+  max_connections: 100
+
+---
+# Конфигурация с шаблонами
+version: 2
+database:
+  host: "{{ db_host | default('localhost') }}"
+  port: 5432
+  name: "{{ app_name }}_db"
+welcome_message: "Hello {{ user }}!"
+environment: "{{ env | default('development') }}"
+features:
+  enable_debug: "{{ env == 'development' }}"
+  cache_ttl: 3600
+
+---
+# Продакшн конфигурация
+version: 3
+database:
+  host: "prod-db.company.com"
+  port: 5432
+  name: "production_db"
+  ssl_mode: "require"
+  connection_pool:
+    min_size: 5
+    max_size: 20
+    timeout: 30
+logging:
+  level: "INFO"
+  format: "json"
+  output: "/var/log/app/application.log"
+features:
+  enable_auth: true
+  enable_cache: true
+  enable_monitoring: true
+  rate_limiting:
+    requests_per_minute: 1000
+    burst_size: 100
